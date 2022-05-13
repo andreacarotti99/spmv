@@ -1,11 +1,9 @@
 /*
-
 * This program executes spmv with COO and CSR format and a matrix with density 0.2
 * Generates the matrix directly in the support structures for COO format by extracting a value different from zero with probability 0.8
 * From the COO data structures we then create the CSR data structures
 * All the data structures are dynamically allocated
 * Tested with matrix from: 2x2 -- 200x200
-
 */
 #include <stdio.h>
 #include <stdlib.h>
@@ -13,13 +11,13 @@
 #include <string.h>
 #include <math.h>
 
-#define DEBUG 1
+#define DEBUG 0
 
 #define MAX_FLOAT_VALUE 10
-#define ROWS 4
-#define COLS 4
+#define ROWS 128
+#define COLS 128
 #define DENSITY 0.2
-#define CODIFICA "COO"
+#define CODIFICA "CSR"
 #define ITERATIONS 6
 
 
@@ -67,8 +65,7 @@ int main(int argc, char *argv[]){
 	int *indices = (int*) malloc(expected_nz * sizeof(int));
 	float *data = (float*) malloc(expected_nz * sizeof(float));
 	int *row = (int*) malloc(expected_nz * sizeof(int));
-	int *ptr = (int*) calloc((expected_nz) * sizeof(int));
-	
+	int *ptr = (int*) malloc((rows+1) * sizeof(int));
 	
 	if (row == NULL) {
     	printf("Error: Memory not allocated.\n");
@@ -134,9 +131,12 @@ int main(int argc, char *argv[]){
 	for (int i = 0; i < number_of_nz; i++){
 		ptr[row[i] + 1]++;
 	}
-	for (int i = 0; i < rows; i++){
+	
+	for (int i = 0; i <= rows; i++){
 		ptr[i + 1] += ptr[i];
-  }
+	}
+  
+
 
 
 	//generate dense array of float x
@@ -163,18 +163,25 @@ int main(int argc, char *argv[]){
 		free(row);
 		free(indices);
 		free(data);
+		free(ptr);
 	}
 
 	else if (strcmp(CODIFICA,"CSR")==0){
 		if (DEBUG){
 			print_ptr_indices_data_row(ptr, indices, data, row);
 		}
+		
 		printf("\nStarting multiplication with CSR format...\n");
 		for (int i = 0; i < ITERATIONS; i++){
-			asm volatile("nop\nnop\nnop\n");
+			printf("Iteration: %d\n", i+1);
+			
 			reset_y(y);
 			spmv_csr(ptr, indices, data, number_of_nz, x, y);
 		}
+		free(row);
+		free(indices);
+		free(data);
+		free(ptr);
 	}
 
 	else if (strcmp(CODIFICA,"ELL")==0){
@@ -273,31 +280,34 @@ void spmv_csr(int *ptr, int *indices, float *data, int number_of_nz, float *x, f
   	float x_indices_j;
   	float mul;
 
+
   	asm volatile("starting_outer_loop:\n");
-  	for(i = 0; i < number_of_nz ; i++){
+  	for(i = 0; i <= ROWS ; i++){
+
+  		
   		asm volatile("save_index_y_in_temp:\n");
     	temp = y[i];
     	asm volatile("inner_loop:\n");
+
     	for(j = ptr[i]; j < ptr[i+1]; j++){
+
     		asm volatile("saving_data_j:\n");
-			data_j = data[j];
-			asm volatile("saving_indices_j:\n");
-			indices_j = indices[j];
-			asm volatile("saving_x_indices_j:\n");
-			x_indices_j = x[indices_j];
-			asm volatile("data_j_mul_x_indices_j:\n");
-			mul = (data_j * x_indices_j);
-			asm volatile("temp_plus_mul:\n");
-			temp = temp + mul;
-			asm volatile("incrementing_inner_loop:\n");
-		}
+				data_j = data[j];
+				asm volatile("saving_indices_j:\n");
+				indices_j = indices[j];
+				asm volatile("saving_x_indices_j:\n");
+				x_indices_j = x[indices_j];
+				asm volatile("data_j_mul_x_indices_j:\n");
+				mul = (data_j * x_indices_j);
+				asm volatile("temp_plus_mul:\n");
+				temp = temp + mul;
+				asm volatile("incrementing_inner_loop:\n");
+			}
     	asm volatile("saving_new_temp:\n");
     	y[i] = temp;
     	asm volatile("incrementing_outer_loop:\n");
   	}
   	asm volatile("ending_computation_csr:\n");
-  	asm volatile("nop\nnop\nnop\nnop\n");
-  
 }
 
 
@@ -388,7 +398,7 @@ void print_ptr_indices_data_row(int *ptr, int *indices, float *data, int *row){
 	}
 	printf("]\n");
 	printf("ptr = [ ");
-	for (int i = 0; i < ROWS+1; i++){
+	for (int i = 0; i <= ROWS; i++){
 		printf("%d ", ptr[i]);
 	}
 	printf("]\n");

@@ -14,12 +14,13 @@
 
 #define DEBUG 0
 
-//#define ARRAY_LENGTH 10000
 #define MAX_FLOAT_VALUE 10
-#define ROWS 100
-#define COLS 100
+#define ROWS 128
+#define COLS 128
 #define DENSITY 0.2
-#define CODIFICA "CSR"
+#define CODIFICA "ELL"
+#define ITERATIONS 6
+
 
 
 /******************************************************************* DECLARING FUNCTIONS *********************************************************************/
@@ -36,6 +37,7 @@ void print_ELL();
 void switch_float_array();
 void switch_int_array();
 void print_matrix();
+void reset_y();
 
 
 /******************************************************************** MAIN *************************************************************************************/
@@ -204,18 +206,35 @@ int main(int argc, char *argv[]){
 
 	if(strcmp(CODIFICA,"COO")==0){
 		printf("\nStarting multiplication with COO format...\n");
-		spmv_coo(row, indices, data, number_of_nz, x, y);
+		
+		for (int i = 0; i < ITERATIONS; i++){
+			printf("Iteration: %d\n", i+1);
+			reset_y(y);
+			spmv_coo(row, indices, data, number_of_nz, x, y);
+		}
 	}
 	else if (strcmp(CODIFICA,"CSR")==0){
 		printf("\nStarting multiplication with CSR format...\n");
-		spmv_csr(ptr, indices, data, number_of_nz, x, y);
+
+		for (int i = 0; i < ITERATIONS; i++){
+			printf("Iteration: %d\n", i+1);
+			reset_y(y);
+			spmv_csr(ptr, indices, data, number_of_nz, x, y);
+		}
+		
 	}
 	else if (strcmp(CODIFICA,"ELL")==0){
 		switch_float_array(data_ELL, data_EL2, rows, max_nz_per_row);
 		switch_int_array(indices_ELL, indices_EL2, rows, max_nz_per_row);
 		//print_ELL(data_EL2, indices_EL2, rows, max_nz_per_row);
 		printf("\nStarting multiplication with ELL format...\n");
-		spmv_ell(indices_EL2, data_EL2, max_nz_per_row, rows, x, y);
+
+		for (int i  = 0; i < ITERATIONS; i++){
+			printf("Iteration: %d\n", i+1);
+			reset_y(y);
+			spmv_ell(indices_EL2, data_EL2, max_nz_per_row, rows, x, y);
+		}
+		
 	}
 	if (DEBUG){
 		print_y(y, cols);
@@ -227,6 +246,7 @@ int main(int argc, char *argv[]){
 /****************************************************************** FUNCTIONS ********************************************************************************/
 
 void spmv_ell(int *indices, float *data, int max_nz_per_row, int rows, float *x, float *y) {
+asm volatile("nop\nnop\nnop\n");
   asm volatile("starting_computation_ell:\n");
   int i, j;
   for(j = 0; j <  max_nz_per_row; j++){
@@ -263,6 +283,16 @@ void spmv_coo(int *rowind, int *colind, float *val, int number_of_nz, float *x, 
 
 
 void spmv_csr(int *row_ptr, int *colind, float *val, int number_of_nz, float *x, float *y) {
+
+	if (DEBUG){
+		printf("ptr = [ ");
+		for (int i  = 0; i < ROWS; i++){
+			printf("%d ", row_ptr[i]);
+		}
+		printf("]\n");
+	}
+
+
 	asm volatile("nop\nnop\nnop\n");
 	asm volatile("starting_computation_csr:\n");
 	int i, j;
@@ -456,4 +486,10 @@ void print_matrix(float *mat, int R, int C){
 		printf("\n");
 	}
 
+}
+
+void reset_y(float *y){
+	for (int i=0; i < ROWS; i++){
+		y[i] = 0;
+	}
 }
